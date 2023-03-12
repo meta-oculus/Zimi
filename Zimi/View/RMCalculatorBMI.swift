@@ -29,6 +29,15 @@ struct RMCalculatorBMI: View {
     @State private var calculatedBMI: Double = 0
     @State private var result = "Normal"
     @State private var showResults = false
+    @State private var showSheet = false
+    @State private var differenceArray: [String] = [""]
+    @State private var risks: [String] = [""]
+    
+    //MARK: Enum for Case
+    @State private var category = Category.normal
+    enum Category {
+        case underweight, normal, overweight, obese
+    }
     
     //MARK: Hide Keyboard and Settings
     @FocusState var keyboardShow: Bool
@@ -50,12 +59,11 @@ struct RMCalculatorBMI: View {
     init() {
         UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: UIColor.white]
         UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor.white]
-        
     }
     
     //MARK: View
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: SectionHeader(text: "Enter Your Information")) {
                     if metric == false {
@@ -99,8 +107,9 @@ struct RMCalculatorBMI: View {
                 Section {
                     Button("Calculate BMI Score") {
                         calculateBMI()
-                        calculateDifference()
                         rangeOfBMI()
+                        calculateDifference()
+                        displayDifference()
                         showResults = true
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -111,12 +120,9 @@ struct RMCalculatorBMI: View {
                 
                 Section {
                     if showResults {
-                        NavigationLink {
-                            RMResultsView(calculatedBMI: calculatedBMI, underweightDifference: underweight, normalDifference: normal, overweightDifference: overweight, obeseDifference: obese, result: result, colorIndicator: colorIndicator, metric: metric)
-                        } label: {
-                            Button("Results") {
-                                showResults = false
-                            }
+                        Button("Results") {
+                            showSheet = true
+                            showResults = false
                         }
                     }
                 }
@@ -139,7 +145,9 @@ struct RMCalculatorBMI: View {
                 }
             }
         }
-        .onAppear()
+        .sheet(isPresented: $showSheet) {
+            RMResultsView(calculatedBMI: calculatedBMI, differenceArray: differenceArray, result: result, colorIndicator: colorIndicator, risks: risks, metric: metric)
+        }
     }
     
     //MARK: Calculates BMI
@@ -149,44 +157,15 @@ struct RMCalculatorBMI: View {
         
         if metric {
             let heightCM = Double(heightCentimeters) + 60
-            let meters = heightCM / 100
+            let meters = (heightCM / 100)
             let squaredHeightM = (meters * meters)
-            calculatedBMI = (convertedWeightKilograms ?? 60) / squaredHeightM
+            let calcBMI = (convertedWeightKilograms ?? 60) / squaredHeightM
+            calculatedBMI = round(calcBMI * 100) / 100.0
         } else {
             let heightIN = Double(heightInches) + 22
             let squaredHeightIN = (heightIN * heightIN)
-            calculatedBMI = (703 * (convertedWeightPounds ?? 150)) / squaredHeightIN
-        }
-    }
-    
-    //MARK: Calculates Difference from
-    func calculateDifference() {
-        
-        let convertedWeightKilograms = Double(weightKilograms.trimmingCharacters(in: .whitespacesAndNewlines))
-        let convertedWeightPounds = Double(weightKilograms.trimmingCharacters(in: .whitespacesAndNewlines))
-        
-        if metric {
-            let heightCM = Double(heightCentimeters) + 60
-            let meters = heightCM / 100
-            let metersSquared = meters * meters
-            
-            underweight = abs(18.5 * metersSquared - (convertedWeightKilograms ?? 60))
-            normal = abs(25 * metersSquared - (convertedWeightKilograms ?? 60))
-            overweight = abs(30 * metersSquared - (convertedWeightKilograms ?? 60))
-            obese = abs(31 * metersSquared - (convertedWeightKilograms ?? 60))
-        } else {
-            let heightIN = Double(heightInches) + 22
-            let inchesSquared = heightIN * heightIN
-            
-            let underweightScore = (18.5 * inchesSquared)/730
-            let normalScore = (25 * inchesSquared)/730
-            let overWeightScore = (30 * inchesSquared)/730
-            let obeseScore = (31 * inchesSquared)/730
-                
-            underweight = abs(underweightScore - (convertedWeightPounds ?? 150))
-            normal = abs(normalScore - (convertedWeightPounds ?? 150))
-            overweight = abs(overWeightScore - (convertedWeightPounds ?? 150))
-            obese = abs(obeseScore - (convertedWeightPounds ?? 150))
+            let calcBMI = (703 * (convertedWeightPounds ?? 150)) / squaredHeightIN
+            calculatedBMI = round(calcBMI * 100) / 100.0
         }
     }
     
@@ -194,16 +173,119 @@ struct RMCalculatorBMI: View {
     func rangeOfBMI() {
         if calculatedBMI <= 18 {
             result = "Underweight"
+            category = .underweight
             colorIndicator = .lightBlue
         } else if calculatedBMI <= 25 {
             result = "Normal"
+            category = .normal
             colorIndicator = .blue
         } else if calculatedBMI <= 30 {
             result = "Overweight"
+            category = .overweight
             colorIndicator = .orange
         } else if calculatedBMI > 30 {
             result = "Obese"
+            category = .obese
             colorIndicator = .red
+        }
+    }
+    
+    //MARK: Calculates Difference from
+    func calculateDifference() {
+        //Weights Converted
+        let convertedWeightKilograms = Double(weightKilograms.trimmingCharacters(in: .whitespacesAndNewlines))
+        let convertedWeightPounds = Double(weightPounds.trimmingCharacters(in: .whitespacesAndNewlines))
+        
+        if metric {
+            differenceArray = []
+            //Heights Converted to Metric
+            let heightCM = Double(heightCentimeters) + 60
+            let meters = heightCM / 100
+            let metersSquared = meters * meters
+            
+            let calcUW = 18.5 * metersSquared - (convertedWeightKilograms ?? 60)
+            let calcNM = 25 * metersSquared - (convertedWeightKilograms ?? 60)
+            let calcOW = 30 * metersSquared - (convertedWeightKilograms ?? 60)
+            let calcOB = 31 * metersSquared - (convertedWeightKilograms ?? 60)
+            
+            underweight = abs(round(calcUW * 100) / 100.0)
+            normal = abs(round(calcNM * 100) / 100.0)
+            overweight = abs(round(calcOW * 100) / 100.0)
+            obese = abs(round(calcOB * 100) / 100.0)
+        } else {
+            differenceArray = []
+            //Heights Converted to Imperial
+            let heightIN = Double(heightInches) + 22
+            let inchesSquared = heightIN * heightIN
+            
+            let calcUW = ((18.5 * inchesSquared)/730) - (convertedWeightPounds ?? 150)
+            let calcNM = ((25 * inchesSquared)/730)  - (convertedWeightPounds ?? 150)
+            let calcOW = ((30 * inchesSquared)/730)  - (convertedWeightPounds ?? 150)
+            let calcOB = ((31 * inchesSquared)/730)  - (convertedWeightPounds ?? 150)
+            
+            underweight = abs(round(calcUW * 100) / 100.0)
+            normal = abs(round(calcNM * 100) / 100.0)
+            overweight = abs(round(calcOW * 100) / 100.0)
+            obese = abs(round(calcOB * 100) / 100.0)
+        }
+    }
+    
+    //MARK: Displays Difference in Array
+    func displayDifference() {
+        if metric {
+            switch category {
+            case .underweight:
+                differenceArray.insert("You are under the underweight category.", at: 0)
+                differenceArray.insert("You are \(normal) kilograms away from normal.", at: 1)
+                differenceArray.insert("You are \(overweight) kilograms away from overweight.", at: 2)
+                differenceArray.insert("You are \(obese) kilograms away from obese.", at: 3)
+                risks = [" Malnutrition and nutrient deficiencies", "Weak immune system", "Osteoporosis and bone fractures", "Anemia", "Infertility and hormonal imbalances"]
+            case .normal:
+                differenceArray.insert("You are under the normal category.", at: 0)
+                differenceArray.insert("You are \(underweight) kilograms away from underweight.", at: 1)
+                differenceArray.insert("You are \(overweight) kilograms away from overweight.", at: 2)
+                differenceArray.insert("You are \(obese) kilograms away from obese.", at: 3)
+                risks = ["Low risk of heart disease", "Low risk of diabetes", "Low risk of cancer", "Generally good overall health"]
+            case .overweight:
+                differenceArray.insert("You are under the overweight category.", at: 0)
+                differenceArray.insert("You are \(underweight) kilograms away from underweight.", at: 1)
+                differenceArray.insert("You are \(normal) kilograms away from normal.", at: 2)
+                differenceArray.insert("You are \(obese) kilograms away from obese.", at: 3)
+                risks = ["Increased risk of heart disease", "Increased risk of diabetes", "Increased risk of cancer", "High blood pressure and cholesterol", "Sleep apnea", "Joint pain and arthritis"]
+            case .obese:
+                differenceArray.insert("You are under the obese category.", at: 0)
+                differenceArray.insert("You are \(underweight) kilograms away from underweight.", at: 1)
+                differenceArray.insert("You are \(normal) kilograms away from normal.", at: 2)
+                differenceArray.insert("You are \(overweight) kilograms away from overweight.", at: 3)
+                risks = ["Increased risk of chronic heart disease", "Increased risk of diabetes", "Increased risk of cancer", "High blood pressure and cholesterol", "Sleep apnea", "Joint pain and arthritis", "Infertility and hormonal imbalances", "Gallbladder disease", "Stroke"]
+            }
+        } else {
+            switch category {
+            case .underweight:
+                differenceArray.insert("You are under the underweight category.", at: 0)
+                differenceArray.insert("You are \(normal) pounds away from normal.", at: 1)
+                differenceArray.insert("You are \(overweight) pounds away from overweight.", at: 2)
+                differenceArray.insert("You are \(obese) pounds away from obese.", at: 3)
+                risks = [" Malnutrition and nutrient deficiencies", "Weak immune system", "Osteoporosis and bone fractures", "Anemia", "Infertility and hormonal imbalances"]
+            case .normal:
+                differenceArray.insert("You are under the normal category.", at: 0)
+                differenceArray.insert("You are \(underweight) pounds away from underweight.", at: 1)
+                differenceArray.insert("You are \(overweight) pounds away from overweight.", at: 2)
+                differenceArray.insert("You are \(obese) pounds away from obese.", at: 3)
+                risks = ["Low risk of heart disease", "Low risk of diabetes", "Low risk of cancer", "Generally good overall health"]
+            case .overweight:
+                differenceArray.insert("You are under the overweight category.", at: 0)
+                differenceArray.insert("You are \(underweight) pounds away from underweight.", at: 1)
+                differenceArray.insert("You are \(normal) pounds away from normal.", at: 2)
+                differenceArray.insert("You are \(obese) pounds away from obese.", at: 3)
+                risks = ["Increased risk of heart disease", "Increased risk of diabetes", "Increased risk of cancer", "High blood pressure and cholesterol", "Sleep apnea", "Joint pain and arthritis"]
+            case .obese:
+                differenceArray.insert("You are under the obese category.", at: 0)
+                differenceArray.insert("You are \(underweight) pounds away from underweight.", at: 1)
+                differenceArray.insert("You are \(normal) pounds away from normal.", at: 2)
+                differenceArray.insert("You are \(overweight) pounds away from overweight.", at: 3)
+                risks = ["Increased risk of chronic heart disease", "Increased risk of diabetes", "Increased risk of cancer", "High blood pressure and cholesterol", "Sleep apnea", "Joint pain and arthritis", "Infertility and hormonal imbalances", "Gallbladder disease", "Stroke"]
+            }
         }
     }
 }
